@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+
+# FastAPI
+*.db
+*.sqlite
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+pubspec.lock
+*.iml
+.gradle/
+.android/
+.ios/
+.web/
+.windows/
+.macos/
+.linux/
+
+# Build outputs
+build/
+dist/
+.build/
+
+# Environment
+.env
+*.env
+.env.local
+.env.*.local
+
+# Docker
+postgres_data/
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Project specific
+forest_db.db
+.pytest_cache/
+*.tmp
