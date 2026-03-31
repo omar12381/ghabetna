@@ -264,11 +264,34 @@ CREATE INDEX ix_parcelles_geom ON parcelles USING GIST (geom);
 
 ---
 
-## [M0] SOCLE TECHNIQUE — ⬜ TODO
+## [M0] SOCLE TECHNIQUE — ✅ DONE | 31 mars 2026
+> Service : N/A (infra only) | Port : N/A | DB : forest_db
+> Stack : Docker + docker-compose + PostgreSQL/PostGIS 15-3.3 + pydantic-settings + Flutter String.fromEnvironment
 
-> À remplir après completion
+### Implemented
+- Monorepo : `ghabetna/services/user_management/` (backend) + `ghabetna/flutter/user_forest_app/` (Flutter)
+- `DATABASE_URL` migrée vers pydantic-settings `BaseSettings` + `.env` — hostname `db` (Docker)
+- CORS : `allow_origins` lu via `os.getenv("CORS_ORIGINS")` — plus de `["*"]`
+- Dockerfile `python:3.11-slim` + `libpq-dev/gcc` + entrypoint `uvicorn app.main:app`
+- `docker-compose.yml` racine : `postgis/postgis:15-3.3` + healthcheck `pg_isready` + `depends_on: service_healthy` + volume `postgres_data`
+- `.env.example` versionné, `.env` exclu via `.gitignore` (racine + service)
+- Flutter `apiBaseUrl` → `String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:8000')`
 
----
+### Rules (for future milestones)
+- RULE: `DATABASE_URL` toujours via pydantic-settings + `.env` — jamais hardcodée
+- RULE: `.env` jamais versionné — seul `.env.example` l'est
+- RULE: `allow_origins=["*"]` interdit — toujours via `os.getenv("CORS_ORIGINS")`
+- RULE: `depends_on: condition: service_healthy` obligatoire pour tout service qui dépend de `db`
+- RULE: URL backend Flutter via `String.fromEnvironment` — jamais hardcodée dans les services
+- RULE: Redis absent jusqu'à M5 — aucune dépendance Redis avant
+- RULE: Alembic absent jusqu'à Phase 2 — migrations via `_migrations` on_startup
+
+### Refactor Later
+- REFACTOR: Renommer `services/user_management/` → `services/user-forest-service/` et aplatir `flutter/user_forest_app/` → `flutter/` — **M1**
+- REFACTOR: Pinner les versions `requirements.txt` (ex. `fastapi==0.111.0`) — **M1**
+- REFACTOR: Ajouter `version: "3.9"` au `docker-compose.yml` — **M1 (trivial)**
+- REFACTOR: Ajouter Redis dans `docker-compose.yml` — **M5**
+- REFACTOR: Remplacer migrations artisanales par Alembic — **Phase 2**
 
 ## [M1] AUTH SERVICE — ⬜ TODO
 

@@ -1,0 +1,10 @@
+fastapi==0.135.2
+uvicorn[standard]==0.42.0
+SQLAlchemy==2.0.48
+psycopg2-binary==2.9.11
+GeoAlchemy2==0.18.4
+shapely==2.1.2
+pydantic-settings==2.13.1
+email-validator==2.3.0
+python-multipart==0.0.22
+passlib==1.7.4
