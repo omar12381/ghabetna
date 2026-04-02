@@ -7,13 +7,14 @@ from sqlalchemy import text
 from app.db import get_db
 from app import models, schemas
 from app.geo_utils import geojson_to_geometry, geometry_to_geojson
+from app.utils.jwt_guard import TokenPayload, get_current_user, require_roles
 
 
 router = APIRouter()
 
 # Crée une forêt ; retourne ForestRead (201)
 @router.post("/", response_model=schemas.ForestRead, status_code=status.HTTP_201_CREATED)
-def create_forest(forest_in: schemas.ForestCreate, db: Session = Depends(get_db)):
+def create_forest(forest_in: schemas.ForestCreate, db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin", "superviseur"))):
     geom = geojson_to_geometry(forest_in.geometry)
 
     # Vérifier que la nouvelle forêt ne chevauche pas les forêts existantes
@@ -55,7 +56,7 @@ def create_forest(forest_in: schemas.ForestCreate, db: Session = Depends(get_db)
 
 # Liste toutes les forêts (pagination + payload option via limit)
 @router.get("/", response_model=List[schemas.ForestRead])
-def list_forests(skip: int = 0, limit: int = 1000, db: Session = Depends(get_db)):
+def list_forests(skip: int = 0, limit: int = 1000, db: Session = Depends(get_db), _: TokenPayload = Depends(get_current_user)):
     forests = db.query(models.Forest).offset(skip).limit(limit).all()
     return [
         schemas.ForestRead(
@@ -77,6 +78,7 @@ def list_forests_summary(
     skip: int = 0,
     limit: int = 1000,
     db: Session = Depends(get_db),
+    _: TokenPayload = Depends(get_current_user),
 ):
     """
     Light payload for list views (no GeoJSON geometry).
@@ -97,7 +99,7 @@ def list_forests_summary(
 
 # Obtenir une forêt par id
 @router.get("/{forest_id}", response_model=schemas.ForestRead)
-def get_forest(forest_id: int, db: Session = Depends(get_db)):
+def get_forest(forest_id: int, db: Session = Depends(get_db), _: TokenPayload = Depends(get_current_user)):
     forest = db.query(models.Forest).get(forest_id)
     if not forest:
         raise HTTPException(status_code=404, detail="Forêt non trouvée")
@@ -114,7 +116,7 @@ def get_forest(forest_id: int, db: Session = Depends(get_db)):
 
 # Met à jour une forêt par id (partiel)
 @router.put("/{forest_id}", response_model=schemas.ForestRead)
-def update_forest(forest_id: int, forest_in: schemas.ForestUpdate, db: Session = Depends(get_db)):
+def update_forest(forest_id: int, forest_in: schemas.ForestUpdate, db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin", "superviseur"))):
     forest = db.query(models.Forest).get(forest_id)
     if not forest:
         raise HTTPException(status_code=404, detail="Forêt non trouvée")
@@ -164,7 +166,7 @@ def update_forest(forest_id: int, forest_in: schemas.ForestUpdate, db: Session =
 
 # Supprime une forêt par id
 @router.delete("/{forest_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_forest(forest_id: int, db: Session = Depends(get_db)):
+def delete_forest(forest_id: int, db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin", "superviseur"))):
     forest = db.query(models.Forest).get(forest_id)
     if not forest:
         raise HTTPException(status_code=404, detail="Forêt non trouvée")

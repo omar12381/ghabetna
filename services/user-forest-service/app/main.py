@@ -8,6 +8,7 @@ from .db import engine, Base
 from . import models  # noqa: F401
 from .routers import users, forests, parcelles, roles
 from .routers.directions import router_regionales, router_secondaires
+from .routers.geo import router as geo_router
 
 
 app = FastAPI(title="User & Forest Management API")
@@ -70,10 +71,16 @@ def on_startup():
         )
 
 
+@app.get("/health")
+def health():
+    return {"status": "ok", "service": "user-forest-service"}
+
+
 app.include_router(roles.router, prefix="/roles", tags=["roles"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(forests.router, prefix="/forests", tags=["forests"])
 app.include_router(parcelles.router, prefix="/parcelles", tags=["parcelles"])
 app.include_router(router_regionales, prefix="/directions-regionales", tags=["directions"])
 app.include_router(router_secondaires, prefix="/directions-secondaires", tags=["directions"])
+app.include_router(geo_router, prefix="/geo", tags=["geo"])
 

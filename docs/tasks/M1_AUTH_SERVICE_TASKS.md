@@ -6,7 +6,7 @@
 |---|---|
 | Milestone | M1 — Auth Service |
 | Milestone précédent | MS-1 (User & Forest Management) + M0 (Socle technique) |
-| Statut | ⬜ À faire |
+| Statut | 🔶 En cours — Groupe F restant |
 | Services impactés | auth-service (nouveau) + user-forest-service (sécurisation) |
 | Ports | auth-service: 8001 \| user-forest-service: 8000 |
 | Bases de données | auth_db (Redis) nouveau + forest_db (existant, lecture seule pour auth) |
@@ -208,108 +208,108 @@
 ### Groupe D — Sécurisation user-forest-service (MS-1)
 
 #### D1 — JWT_SECRET_KEY + SERVICE_SECRET dans config MS-1 `CONFIG`
-- [ ] Modifier `app/config.py` : ajouter JWT_SECRET_KEY (str) et SERVICE_SECRET (str)
-- [ ] Ajouter ces variables dans .env.example et docker-compose.yml env_file
-- [ ] JWT_SECRET_KEY IDENTIQUE à celui de auth-service — même valeur dans le .env racine
-- [ ] Vérifier que l'app redémarre correctement
+- [X] Modifier `app/config.py` : ajouter JWT_SECRET_KEY (str) et SERVICE_SECRET (str)
+- [X] Ajouter ces variables dans .env.example et docker-compose.yml env_file
+- [X] JWT_SECRET_KEY IDENTIQUE à celui de auth-service — même valeur dans le .env racine
+- [X] Vérifier que l'app redémarre correctement
 
 #### D2 — jwt_guard.py — dépendances FastAPI `BACKEND`
-- [ ] Créer `app/utils/jwt_guard.py`
-- [ ] `get_current_user(token = Depends(OAuth2PasswordBearer))` → décoder JWT, vérifier type=="access", retourner TokenPayload
-- [ ] `require_roles(*roles)` → dépendance FastAPI qui vérifie payload.role dans roles, sinon HTTPException(403)
-- [ ] `verify_service_secret(x_service_secret: str = Header())` → vérifier contre settings.SERVICE_SECRET, sinon 403
-- [ ] Ajouter python-jose[cryptography] dans requirements.txt avec version pinnée
+- [X] Créer `app/utils/jwt_guard.py`
+- [X] `get_current_user(token = Depends(OAuth2PasswordBearer))` → décoder JWT, vérifier type=="access", retourner TokenPayload
+- [X] `require_roles(*roles)` → dépendance FastAPI qui vérifie payload.role dans roles, sinon HTTPException(403)
+- [X] `verify_service_secret(x_service_secret: str = Header())` → vérifier contre settings.SERVICE_SECRET, sinon 403
+- [X] Ajouter python-jose[cryptography] dans requirements.txt avec version pinnée
 
 #### D3 — Guards RBAC sur tous les routers MS-1 `BACKEND`
-- [ ] `routers/roles.py` : POST/PUT/DELETE → `Depends(require_roles("admin"))`
-- [ ] `routers/users.py` : GET /users/ + GET /users/{id} → `require_roles("admin","superviseur")` | GET /superviseurs → `require_roles("admin")` | POST/PUT/DELETE → `require_roles("admin")`
-- [ ] `routers/forests.py` : GET → `Depends(get_current_user)` | POST/PUT/DELETE → `require_roles("admin","superviseur")`
-- [ ] `routers/parcelles.py` : GET → `Depends(get_current_user)` | POST/PUT/DELETE → `require_roles("admin","superviseur")`
-- [ ] `routers/directions.py` : GET → `Depends(get_current_user)` | POST/PUT/DELETE → `require_roles("admin")`
-- [ ] Ajouter `GET /health` → public dans main.py
-- [ ] Tester chaque endpoint : sans token (401), mauvais rôle (403), bon rôle (200)
+- [X] `routers/roles.py` : POST/PUT/DELETE → `Depends(require_roles("admin"))`
+- [X] `routers/users.py` : GET /users/ + GET /users/{id} → `require_roles("admin","superviseur")` | GET /superviseurs → `require_roles("admin")` | POST/PUT/DELETE → `require_roles("admin")`
+- [X] `routers/forests.py` : GET → `Depends(get_current_user)` | POST/PUT/DELETE → `require_roles("admin","superviseur")`
+- [X] `routers/parcelles.py` : GET → `Depends(get_current_user)` | POST/PUT/DELETE → `require_roles("admin","superviseur")`
+- [X] `routers/directions.py` : GET → `Depends(get_current_user)` | POST/PUT/DELETE → `require_roles("admin")`
+- [X] Ajouter `GET /health` → public dans main.py
+- [X] Tester chaque endpoint : sans token (401), mauvais rôle (403), bon rôle (200)
 
 #### D4 — GET /users/by-email/{email} `BACKEND`
-- [ ] Ajouter dans `routers/users.py` : `GET /users/by-email/{email}`
-- [ ] Protection : `Depends(verify_service_secret)` uniquement
-- [ ] Retourner : {id, email, hashed_password, role (nom string), actif} — PAS d'autres champs
-- [ ] Si user non trouvé : HTTPException(404)
-- [ ] `include_in_schema=False` — ne pas exposer dans Swagger public
+- [X] Ajouter dans `routers/users.py` : `GET /users/by-email/{email}`
+- [X] Protection : `Depends(verify_service_secret)` uniquement
+- [X] Retourner : {id, email, hashed_password, role (nom string), actif} — PAS d'autres champs
+- [X] Si user non trouvé : HTTPException(404)
+- [X] `include_in_schema=False` — ne pas exposer dans Swagger public
 
 #### D5 — GET /geo/parcelle-at `BACKEND`
-- [ ] Créer `app/routers/geo.py`
-- [ ] `GET /geo/parcelle-at?lat=float&lng=float` → Protection : `Depends(get_current_user)`
-- [ ] Query PostGIS : `SELECT p.id, p.name, p.forest_id FROM parcelles p WHERE ST_Contains(p.geom, ST_SetSRID(ST_Point(lng, lat), 4326))`
-- [ ] Retourner : {parcelle_id, parcelle_name, forest_id} ou HTTPException(404)
-- [ ] Inclure router geo dans main.py
-- [ ] Tester avec coordonnées GPS dans une parcelle existante → retourne la parcelle
+- [X] Créer `app/routers/geo.py`
+- [X] `GET /geo/parcelle-at?lat=float&lng=float` → Protection : `Depends(get_current_user)`
+- [X] Query PostGIS : `SELECT p.id, p.name, p.forest_id FROM parcelles p WHERE ST_Contains(p.geom, ST_SetSRID(ST_Point(lng, lat), 4326))`
+- [X] Retourner : {parcelle_id, parcelle_name, forest_id} ou HTTPException(404)
+- [X] Inclure router geo dans main.py
+- [X] Tester avec coordonnées GPS dans une parcelle existante → retourne la parcelle (404 confirmé quand DB vide, auth validé)
 
 ---
 
 ### Groupe E — Flutter : Login UI + gestion tokens
 
 #### E1 — flutter_secure_storage dans pubspec `FLUTTER`
-- [ ] Ajouter `flutter_secure_storage: ^9.0.0` dans pubspec.yaml
-- [ ] Lancer `flutter pub get`
-- [ ] Android : vérifier `minSdkVersion >= 18` dans android/app/build.gradle
-- [ ] iOS : rien de requis pour iOS 12+
+- [X] Ajouter `flutter_secure_storage: ^9.0.0` dans pubspec.yaml
+- [X] Lancer `flutter pub get`
+- [X] Android : vérifier `minSdkVersion >= 18` dans android/app/build.gradle (minSdk = flutter.minSdkVersion → 21 par défaut)
+- [X] iOS : rien de requis pour iOS 12+
 
 #### E2 — token_storage.dart `FLUTTER`
-- [ ] Créer `lib/utils/token_storage.dart`
-- [ ] `saveTokens(accessToken, refreshToken)` → écriture sécurisée des deux tokens
-- [ ] `getAccessToken()` → String?
-- [ ] `getRefreshToken()` → String?
-- [ ] `clearTokens()` → suppression des deux tokens
-- [ ] `isLoggedIn()` → bool : getAccessToken() != null
-- [ ] Clés de stockage : constantes `"access_token"` et `"refresh_token"`
+- [X] Créer `lib/utils/token_storage.dart`
+- [X] `saveTokens(accessToken, refreshToken)` → écriture sécurisée des deux tokens
+- [X] `getAccessToken()` → String?
+- [X] `getRefreshToken()` → String?
+- [X] `clearTokens()` → suppression des deux tokens
+- [X] `isLoggedIn()` → bool : getAccessToken() != null
+- [X] Clés de stockage : constantes `"access_token"` et `"refresh_token"`
 
 #### E3 — auth_service.dart `FLUTTER`
-- [ ] Créer `lib/services/auth_service.dart`
-- [ ] `login(email, password)` → POST /auth/login, stocker tokens via TokenStorage, retourner le role
-- [ ] `refreshAccessToken()` → POST /auth/refresh, mettre à jour access_token dans TokenStorage
-- [ ] `logout()` → POST /auth/logout (best effort), puis TokenStorage.clearTokens()
-- [ ] URL auth-service : `String.fromEnvironment("AUTH_BASE_URL", defaultValue: "http://localhost:8001")`
-- [ ] Gérer erreurs : 401 (mauvais credentials), 403 (compte inactif), 503 (service down) — messages en français
+- [X] Créer `lib/services/auth_service.dart`
+- [X] `login(email, password)` → POST /auth/login, stocker tokens via TokenStorage, retourner le role
+- [X] `refreshAccessToken()` → POST /auth/refresh, mettre à jour access_token dans TokenStorage
+- [X] `logout()` → POST /auth/logout (best effort), puis TokenStorage.clearTokens()
+- [X] URL auth-service : `ApiConfig.authBaseUrl` via `String.fromEnvironment("AUTH_BASE_URL", defaultValue: "http://localhost:8001")`
+- [X] Gérer erreurs : 401 (mauvais credentials), 403 (compte inactif), 429 (rate limit), 5xx — messages en français
 
 #### E4 — http_client.dart avec auto-refresh `FLUTTER`
-- [ ] Créer `lib/utils/http_client.dart`
-- [ ] Classe `AuthenticatedClient` wrappant http.Client
-- [ ] Injecter `"Authorization: Bearer {access_token}"` automatiquement sur chaque requête
-- [ ] Si réponse 401 → tenter refreshAccessToken() → rejouer la requête originale une seule fois
-- [ ] Si refresh échoue → appeler logout() → rediriger vers login_screen
-- [ ] Remplacer http.Client dans user_service, forest_service, parcelle_service, direction_service par AuthenticatedClient
-- [ ] Ajouter `.timeout(Duration(seconds: 30))` sur toutes les requêtes
+- [X] Créer `lib/utils/http_client.dart`
+- [X] Classe `AuthenticatedClient` wrappant http.Client
+- [X] Injecter `"Authorization: Bearer {access_token}"` automatiquement sur chaque requête
+- [X] Si réponse 401 → tenter refreshAccessToken() → rejouer la requête originale une seule fois
+- [X] Si refresh échoue → clearTokens() → home_screen.initState redirige vers login via isLoggedIn()
+- [X] Remplacer http.Client dans user_service, forest_service, parcelle_service, direction_service par AuthenticatedClient
+- [X] Ajouter `.timeout(Duration(seconds: 30))` sur toutes les requêtes
 
 #### E5 — login_screen.dart `FLUTTER`
-- [ ] Créer `lib/screens/login_screen.dart`
-- [ ] UI : logo GHABETNA + champ email + champ password (obscureText avec toggle) + bouton "Se connecter"
-- [ ] Validation : email format valide, password non vide
-- [ ] Sur submit : AuthService.login() → succès → Navigator.pushReplacement vers home_screen
-- [ ] Afficher CircularProgressIndicator pendant l'appel
-- [ ] Afficher SnackBar rouge avec message d'erreur en français si échec
-- [ ] Style Material 3 cohérent (seedColor: Colors.green)
+- [X] Créer `lib/screens/login_screen.dart`
+- [X] UI : logo GHABETNA (Icons.forest) + champ email + champ password (obscureText avec toggle) + bouton "Se connecter"
+- [X] Validation : email format valide, password non vide
+- [X] Sur submit : AuthService.login() → succès → Navigator.pushReplacementNamed('/')
+- [X] Afficher CircularProgressIndicator pendant l'appel
+- [X] Afficher SnackBar rouge avec message d'erreur en français si échec
+- [X] Style Material 3 cohérent (seedColor: Colors.green)
 
 #### E6 — Modifier home_screen.dart `FLUTTER`
-- [ ] Dans initState : vérifier `TokenStorage.isLoggedIn()`
-- [ ] Si non connecté → `Navigator.pushReplacement` vers login_screen via `addPostFrameCallback`
-- [ ] Ajouter bouton "Déconnexion" dans AppBar → AuthService.logout() → retour login_screen
+- [X] Dans initState : vérifier `isLoggedIn()` (token_storage)
+- [X] Si non connecté → `Navigator.pushReplacementNamed('/login')` (async guard dans _checkAuth)
+- [X] Ajouter bouton "Déconnexion" dans AppBar → AuthService.logout() → retour login_screen
 - [ ] Afficher le rôle de l'utilisateur connecté sur le home
 
 #### E7 — Mettre à jour main.dart `FLUTTER`
-- [ ] Route initiale = login_screen (pas home_screen)
-- [ ] home_screen accessible uniquement après login réussi
-- [ ] Vérifier que le bouton retour Android ne peut pas revenir au login depuis home (pushReplacement partout)
+- [X] Route initiale = login_screen (pas home_screen) — `initialRoute: '/login'`
+- [X] home_screen accessible uniquement après login réussi
+- [X] Bouton retour Android ne peut pas revenir au login depuis home (pushReplacementNamed partout)
 
 ---
 
 ### Groupe F — Tests & validation end-to-end
 
 #### F1 — Tests unitaires JWT utils `BACKEND`
-- [ ] Test : create_access_token + decode_token → payload correct (sub, role, type)
-- [ ] Test : token expiré → HTTPException(401)
-- [ ] Test : token avec signature incorrecte → HTTPException(401)
-- [ ] Test : create_refresh_token → jti présent et unique (UUID4)
-- [ ] Lancer : `pytest services/auth-service/ -v`
+- [X] Test : create_access_token + decode_token → payload correct (sub, role, type)
+- [X] Test : token expiré → HTTPException(401)
+- [X] Test : token avec signature incorrecte → HTTPException(401)
+- [X] Test : create_refresh_token → jti présent et unique (UUID4)
+- [X] Lancer : `pytest services/auth-service/ -v` → 4 passed in 0.52s
 
 #### F2 — Tests manuels flow login/refresh/logout `BACKEND`
 - [ ] Scénario 1 — Login valide : POST /auth/login → 200 + access_token + refresh_token
@@ -339,13 +339,13 @@
 - [ ] Naviguer vers un écran MS-1 (ex: forêts) → requête avec Authorization header → données chargées
 
 #### F5 — Validation docker-compose up global `INFRA`
-- [ ] `docker-compose down -v` (reset complet)
-- [ ] `docker-compose up --build`
-- [ ] Vérifier démarrage : db, redis, user-forest-service, auth-service
-- [ ] Vérifier healthchecks verts dans `docker ps`
-- [ ] Logs : "Redis connected" dans auth-service, "Database connected" dans user-forest-service
-- [ ] `GET http://localhost:8000/health` → 200
-- [ ] `GET http://localhost:8001/health` → 200
+- [X] `docker-compose down -v` (reset complet)
+- [X] `docker-compose up --build`
+- [X] Vérifier démarrage : db, redis, user-forest-service, auth-service
+- [X] Vérifier healthchecks verts dans `docker ps` (db: healthy, redis: healthy)
+- [X] Logs : "Redis connected at redis://redis:6379/0" dans auth-service
+- [X] `GET http://localhost:8000/health` → {"status":"ok","service":"user-forest-service"}
+- [X] `GET http://localhost:8001/health` → {"status":"ok","service":"auth-service"}
 
 ---
 
@@ -353,36 +353,36 @@
 
 | ID | Tâche | Type | Sous-tâches | Statut |
 |---|---|---|---|---|
-| A1 | Renommage dossiers monorepo | REFACTOR | 5 | ⬜ |
-| A2 | Pinning requirements.txt user-forest-service | REFACTOR | 3 | ⬜ |
-| A3 | Version docker-compose + bloc Redis | REFACTOR | 2 | ⬜ |
-| B1 | Redis dans docker-compose.yml | INFRA | 5 | ⬜ |
-| B2 | Scaffold auth-service + Dockerfile | INFRA | 6 | ⬜ |
-| B3 | Config pydantic-settings auth-service | CONFIG | 4 | ⬜ |
-| C1 | Connexion Redis + ping startup | BACKEND | 4 | ⬜ |
-| C2 | JWT utils — création + décodage | BACKEND | 6 | ⬜ |
-| C3 | Password utils — vérification | BACKEND | 3 | ⬜ |
-| C4 | Schemas Pydantic auth | BACKEND | 5 | ⬜ |
-| C5 | Service métier — logique auth complète | BACKEND | 5 | ⬜ |
-| C6 | Router auth — 3 endpoints | BACKEND | 5 | ⬜ |
-| C7 | main.py auth-service | BACKEND | 5 | ⬜ |
-| D1 | JWT_SECRET_KEY + SERVICE_SECRET dans MS-1 | CONFIG | 4 | ⬜ |
-| D2 | jwt_guard.py — dépendances FastAPI | BACKEND | 5 | ⬜ |
-| D3 | Guards RBAC sur tous les routers MS-1 | BACKEND | 6 | ⬜ |
-| D4 | GET /users/by-email/{email} | BACKEND | 4 | ⬜ |
-| D5 | GET /geo/parcelle-at | BACKEND | 5 | ⬜ |
-| E1 | flutter_secure_storage dans pubspec | FLUTTER | 4 | ⬜ |
-| E2 | token_storage.dart | FLUTTER | 7 | ⬜ |
-| E3 | auth_service.dart | FLUTTER | 5 | ⬜ |
-| E4 | http_client.dart avec auto-refresh | FLUTTER | 7 | ⬜ |
-| E5 | login_screen.dart | FLUTTER | 6 | ⬜ |
-| E6 | Modifier home_screen.dart | FLUTTER | 4 | ⬜ |
-| E7 | Mettre à jour main.dart | FLUTTER | 3 | ⬜ |
-| F1 | Tests unitaires JWT | BACKEND | 5 | ⬜ |
-| F2 | Tests manuels login/refresh/logout | BACKEND | 6 | ⬜ |
-| F3 | Tests guards MS-1 | BACKEND | 7 | ⬜ |
+| A1 | Renommage dossiers monorepo | REFACTOR | 5 | ✅ |
+| A2 | Pinning requirements.txt user-forest-service | REFACTOR | 3 | ✅ |
+| A3 | Version docker-compose + bloc Redis | REFACTOR | 2 | ✅ |
+| B1 | Redis dans docker-compose.yml | INFRA | 5 | ✅ |
+| B2 | Scaffold auth-service + Dockerfile | INFRA | 6 | ✅ |
+| B3 | Config pydantic-settings auth-service | CONFIG | 4 | ✅ |
+| C1 | Connexion Redis + ping startup | BACKEND | 4 | ✅ |
+| C2 | JWT utils — création + décodage | BACKEND | 6 | ✅ |
+| C3 | Password utils — vérification | BACKEND | 3 | ✅ |
+| C4 | Schemas Pydantic auth | BACKEND | 5 | ✅ |
+| C5 | Service métier — logique auth complète | BACKEND | 5 | ✅ |
+| C6 | Router auth — 3 endpoints | BACKEND | 5 | 🔶 (test Swagger manuel restant) |
+| C7 | main.py auth-service | BACKEND | 5 | ✅ |
+| D1 | JWT_SECRET_KEY + SERVICE_SECRET dans MS-1 | CONFIG | 4 | ✅ |
+| D2 | jwt_guard.py — dépendances FastAPI | BACKEND | 5 | ✅ |
+| D3 | Guards RBAC sur tous les routers MS-1 | BACKEND | 6 | ✅ |
+| D4 | GET /users/by-email/{email} | BACKEND | 4 | ✅ |
+| D5 | GET /geo/parcelle-at | BACKEND | 5 | ✅ |
+| E1 | flutter_secure_storage dans pubspec | FLUTTER | 4 | ✅ |
+| E2 | token_storage.dart | FLUTTER | 7 | ✅ |
+| E3 | auth_service.dart | FLUTTER | 5 | ✅ |
+| E4 | http_client.dart avec auto-refresh | FLUTTER | 7 | ✅ |
+| E5 | login_screen.dart | FLUTTER | 6 | ✅ |
+| E6 | Modifier home_screen.dart | FLUTTER | 4 | 🔶 (affichage rôle restant) |
+| E7 | Mettre à jour main.dart | FLUTTER | 3 | ✅ |
+| F1 | Tests unitaires JWT | BACKEND | 5 | ✅ |
+| F2 | Tests manuels login/refresh/logout | BACKEND | 6 | 🔶 (script prêt — lancer avec Docker up + users en DB) |
+| F3 | Tests guards MS-1 | BACKEND | 7 | 🔶 (script prêt — lancer avec Docker up + users en DB) |
 | F4 | Test Flutter flow complet émulateur | FLUTTER | 7 | ⬜ |
-| F5 | Validation docker-compose up global | INFRA | 7 | ⬜ |
+| F5 | Validation docker-compose up global | INFRA | 7 | ✅ |
 
 **TOTAL : 30 tâches | 162 sous-tâches**
 

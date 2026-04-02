@@ -61,6 +61,7 @@ class UserRead(BaseModel):
 # Réponse interne service-to-service (auth-service uniquement)
 class UserAuthRead(BaseModel):
     id: int
+    email: str
     hashed_password: str
     role: str  # nom du rôle, ex: "admin"
     actif: bool

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from .. import models, schemas
+from ..utils.jwt_guard import TokenPayload, get_current_user, require_roles
 
 router_regionales = APIRouter()
 router_secondaires = APIRouter()
@@ -13,7 +14,7 @@ router_secondaires = APIRouter()
 # ── Directions Régionales ────────────────────────────────────────────────────
 
 @router_regionales.get("/", response_model=List[schemas.DirectionRegionaleRead])
-def list_directions_regionales(db: Session = Depends(get_db)):
+def list_directions_regionales(db: Session = Depends(get_db), _: TokenPayload = Depends(get_current_user)):
     return db.query(models.DirectionRegionale).all()
 
 
@@ -21,6 +22,7 @@ def list_directions_regionales(db: Session = Depends(get_db)):
 def create_direction_regionale(
     direction_in: schemas.DirectionRegionaleCreate,
     db: Session = Depends(get_db),
+    _: TokenPayload = Depends(require_roles("admin")),
 ):
     try:
         db_obj = models.DirectionRegionale(
@@ -41,6 +43,7 @@ def update_direction_regionale(
     region_id: int,
     direction_in: schemas.DirectionRegionaleCreate,
     db: Session = Depends(get_db),
+    _: TokenPayload = Depends(require_roles("admin")),
 ):
     direction = db.query(models.DirectionRegionale).filter(
         models.DirectionRegionale.id == region_id
@@ -59,7 +62,7 @@ def update_direction_regionale(
 
 
 @router_regionales.delete("/{region_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_direction_regionale(region_id: int, db: Session = Depends(get_db)):
+def delete_direction_regionale(region_id: int, db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin"))):
     direction = db.query(models.DirectionRegionale).filter(
         models.DirectionRegionale.id == region_id
     ).first()
@@ -92,13 +95,13 @@ def delete_direction_regionale(region_id: int, db: Session = Depends(get_db)):
 # ── Directions Secondaires ───────────────────────────────────────────────────
 
 @router_secondaires.get("/", response_model=List[schemas.DirectionSecondaireRead])
-def list_directions_secondaires(db: Session = Depends(get_db)):
+def list_directions_secondaires(db: Session = Depends(get_db), _: TokenPayload = Depends(get_current_user)):
     return db.query(models.DirectionSecondaire).all()
 
 
 @router_secondaires.get("/by-regionale/{regionale_id}", response_model=List[schemas.DirectionSecondaireRead])
 def list_directions_secondaires_by_regionale(
-    regionale_id: int, db: Session = Depends(get_db)
+    regionale_id: int, db: Session = Depends(get_db), _: TokenPayload = Depends(get_current_user)
 ):
     return db.query(models.DirectionSecondaire).filter(
         models.DirectionSecondaire.region_id == regionale_id
@@ -109,6 +112,7 @@ def list_directions_secondaires_by_regionale(
 def create_direction_secondaire(
     direction_in: schemas.DirectionSecondaireCreate,
     db: Session = Depends(get_db),
+    _: TokenPayload = Depends(require_roles("admin")),
 ):
     parent = db.query(models.DirectionRegionale).filter(
         models.DirectionRegionale.id == direction_in.region_id
@@ -134,6 +138,7 @@ def update_direction_secondaire(
     secondaire_id: int,
     direction_in: schemas.DirectionSecondaireCreate,
     db: Session = Depends(get_db),
+    _: TokenPayload = Depends(require_roles("admin")),
 ):
     direction = db.query(models.DirectionSecondaire).filter(
         models.DirectionSecondaire.id == secondaire_id
@@ -159,7 +164,7 @@ def update_direction_secondaire(
 
 
 @router_secondaires.delete("/{secondaire_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_direction_secondaire(secondaire_id: int, db: Session = Depends(get_db)):
+def delete_direction_secondaire(secondaire_id: int, db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin"))):
     direction = db.query(models.DirectionSecondaire).filter(
         models.DirectionSecondaire.id == secondaire_id
     ).first()

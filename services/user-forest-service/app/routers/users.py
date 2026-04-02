@@ -1,11 +1,12 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
-from ..db import get_db, settings
+from ..db import get_db
 from .. import models, schemas
+from ..utils.jwt_guard import TokenPayload, require_roles, verify_service_secret
 
 
 router = APIRouter()
@@ -19,7 +20,7 @@ def hash_password(password: str) -> str:
 
 # Crée un utilisateur ; retourne UserRead (201) ou 400 si email/username déjà utilisé
 @router.post("/", response_model=schemas.UserRead, status_code=status.HTTP_201_CREATED)
-def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
+def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin"))):
     if db.query(models.User).filter(models.User.email == user_in.email).first():
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
     if db.query(models.User).filter(models.User.username == user_in.username).first():
@@ -41,19 +42,18 @@ def create_user(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
     return db_user
 
 # Endpoint interne service-to-service — utilisé par auth-service uniquement
-@router.get("/by-email/{email}", response_model=schemas.UserAuthRead)
+@router.get("/by-email/{email}", response_model=schemas.UserAuthRead, include_in_schema=False)
 def get_user_by_email(
     email: str,
-    x_service_secret: str = Header(..., alias="X-Service-Secret"),
     db: Session = Depends(get_db),
+    _: None = Depends(verify_service_secret),
 ):
-    if x_service_secret != settings.SERVICE_SECRET:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid service secret")
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user:
         raise HTTPException(status_code=404, detail="User non trouvé")
     return schemas.UserAuthRead(
         id=user.id,
+        email=user.email,
         hashed_password=user.hashed_password,
         role=user.role.name,
         actif=user.actif,
@@ -62,13 +62,13 @@ def get_user_by_email(
 
 # Liste tous les utilisateurs
 @router.get("/", response_model=List[schemas.UserRead])
-def list_users(db: Session = Depends(get_db)):
+def list_users(db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin", "superviseur"))):
     return db.query(models.User).all()
 
 
 # Liste uniquement les superviseurs (role_id=3) — utilisé par AssignSuperviseurScreen
 @router.get("/superviseurs", response_model=List[schemas.UserRead])
-def list_superviseurs(db: Session = Depends(get_db)):
+def list_superviseurs(db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin"))):
     role_superviseur = db.query(models.Role).filter(models.Role.name == "superviseur").first()
     if not role_superviseur:
         return []
@@ -76,7 +76,7 @@ def list_superviseurs(db: Session = Depends(get_db)):
 
 # Liste un utilisateur par id
 @router.get("/{user_id}", response_model=schemas.UserRead)
-def get_user(user_id: int, db: Session = Depends(get_db)):
+def get_user(user_id: int, db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin", "superviseur"))):
     user = db.query(models.User).get(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User non trouvé")
@@ -84,7 +84,7 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
 
 # Met à jour un utilisateur par id
 @router.put("/{user_id}", response_model=schemas.UserRead)
-def update_user(user_id: int, user_in: schemas.UserUpdate, db: Session = Depends(get_db)):
+def update_user(user_id: int, user_in: schemas.UserUpdate, db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin"))):
     user = db.query(models.User).get(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User non trouvé")
@@ -102,7 +102,7 @@ def update_user(user_id: int, user_in: schemas.UserUpdate, db: Session = Depends
 
 # Supprime un utilisateur par id
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(user_id: int, db: Session = Depends(get_db)):
+def delete_user(user_id: int, db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin"))):
     user = db.query(models.User).get(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User non trouvé")

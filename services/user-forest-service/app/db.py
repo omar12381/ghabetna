@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     DATABASE_URL: str
     SERVICE_SECRET: str = ""
+    JWT_SECRET_KEY: str = ""
 
     class Config:
         env_file = ".env"

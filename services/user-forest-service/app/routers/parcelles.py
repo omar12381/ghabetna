@@ -7,13 +7,14 @@ from shapely.geometry import shape
 from app.db import get_db
 from app import models, schemas
 from app.geo_utils import geojson_to_geometry, geometry_to_geojson
+from app.utils.jwt_guard import TokenPayload, get_current_user, require_roles
 
 
 router = APIRouter()
 
 
 @router.post("/", response_model=schemas.ParcelleRead, status_code=status.HTTP_201_CREATED)
-def create_parcelle(parcelle_in: schemas.ParcelleCreate, db: Session = Depends(get_db)):
+def create_parcelle(parcelle_in: schemas.ParcelleCreate, db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin", "superviseur"))):
     try:
         # Load parent forest
         forest = db.query(models.Forest).get(parcelle_in.forest_id)
@@ -98,7 +99,7 @@ def create_parcelle(parcelle_in: schemas.ParcelleCreate, db: Session = Depends(g
 
 
 @router.get("/", response_model=List[schemas.ParcelleRead])
-def list_parcelles(skip: int = 0, limit: int = 1000, db: Session = Depends(get_db)):
+def list_parcelles(skip: int = 0, limit: int = 1000, db: Session = Depends(get_db), _: TokenPayload = Depends(get_current_user)):
     parcelles = db.query(models.Parcelle).offset(skip).limit(limit).all()
     return [
         schemas.ParcelleRead(
@@ -120,6 +121,7 @@ def list_parcelles_by_forest(
     skip: int = 0,
     limit: int = 1000,
     db: Session = Depends(get_db),
+    _: TokenPayload = Depends(get_current_user),
 ):
     parcelles = (
         db.query(models.Parcelle)
@@ -148,6 +150,7 @@ def list_parcelles_by_forest_summary(
     skip: int = 0,
     limit: int = 1000,
     db: Session = Depends(get_db),
+    _: TokenPayload = Depends(get_current_user),
 ):
     """Light payload for list views (no GeoJSON geometry)."""
     parcelles = (
@@ -171,7 +174,7 @@ def list_parcelles_by_forest_summary(
 
 
 @router.get("/{parcelle_id}", response_model=schemas.ParcelleRead)
-def get_parcelle(parcelle_id: int, db: Session = Depends(get_db)):
+def get_parcelle(parcelle_id: int, db: Session = Depends(get_db), _: TokenPayload = Depends(get_current_user)):
     parcelle = db.query(models.Parcelle).get(parcelle_id)
     if not parcelle:
         raise HTTPException(status_code=404, detail="Parcelle non trouvée")
@@ -187,7 +190,7 @@ def get_parcelle(parcelle_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{parcelle_id}", response_model=schemas.ParcelleRead)
-def update_parcelle(parcelle_id: int, parcelle_in: schemas.ParcelleUpdate, db: Session = Depends(get_db)):
+def update_parcelle(parcelle_id: int, parcelle_in: schemas.ParcelleUpdate, db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin", "superviseur"))):
     parcelle = db.query(models.Parcelle).get(parcelle_id)
     if not parcelle:
         raise HTTPException(status_code=404, detail="Parcelle non trouvée")
@@ -267,7 +270,7 @@ def update_parcelle(parcelle_id: int, parcelle_in: schemas.ParcelleUpdate, db: S
 
 
 @router.delete("/{parcelle_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_parcelle(parcelle_id: int, db: Session = Depends(get_db)):
+def delete_parcelle(parcelle_id: int, db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin", "superviseur"))):
     parcelle = db.query(models.Parcelle).get(parcelle_id)
     if not parcelle:
         raise HTTPException(status_code=404, detail="Parcelle non trouvée")

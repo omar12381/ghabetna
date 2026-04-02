@@ -5,12 +5,13 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from .. import models, schemas
+from ..utils.jwt_guard import require_roles, TokenPayload
 
 router = APIRouter()
 
 
 @router.post("/", response_model=schemas.RoleRead, status_code=status.HTTP_201_CREATED)
-def create_role(role_in: schemas.RoleCreate, db: Session = Depends(get_db)):
+def create_role(role_in: schemas.RoleCreate, db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin"))):
     try:
         db_role = models.Role(name=role_in.name)
         db.add(db_role)
@@ -40,7 +41,8 @@ def get_role(role_id: int, db: Session = Depends(get_db)):
 def update_role(
     role_id: int,
     role_in: schemas.RoleCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: TokenPayload = Depends(require_roles("admin")),
 ):
     role = db.query(models.Role).filter(models.Role.id == role_id).first()
     if not role:
@@ -57,7 +59,7 @@ def update_role(
 
 
 @router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_role(role_id: int, db: Session = Depends(get_db)):
+def delete_role(role_id: int, db: Session = Depends(get_db), _: TokenPayload = Depends(require_roles("admin"))):
     role = db.query(models.Role).filter(models.Role.id == role_id).first()
     if not role:
         raise HTTPException(status_code=404, detail="Rôle non trouvé")
