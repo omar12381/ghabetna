@@ -49,16 +49,7 @@ def on_startup():
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS direction_regionale_id INTEGER REFERENCES direction_regionale(id)",
         "ALTER TABLE forests ADD COLUMN IF NOT EXISTS direction_secondaire_id INTEGER REFERENCES direction_secondaire(id)",
         "ALTER TABLE forests ADD COLUMN IF NOT EXISTS direction_regionale_id INTEGER REFERENCES direction_regionale(id)",
-    ]
-    for _sql in _migrations:
-        try:
-            with engine.begin() as _conn:
-                _conn.execute(text(_sql))
-        except Exception:
-            pass  # colonne déjà présente ou erreur non bloquante
-
-    # Index affectations (Proposition B minimale)
-    _migrations += [
+        # NT1.2 — Index affectations (Proposition B minimale)
         """
         CREATE UNIQUE INDEX IF NOT EXISTS uq_agent_assignment_actif
         ON agent_parcelle_assignments (agent_id)
@@ -67,6 +58,12 @@ def on_startup():
         "CREATE INDEX IF NOT EXISTS ix_apa_parcelle ON agent_parcelle_assignments (parcelle_id)",
         "CREATE INDEX IF NOT EXISTS ix_apa_assigned  ON agent_parcelle_assignments (assigned_by)",
     ]
+    for _sql in _migrations:
+        try:
+            with engine.begin() as _conn:
+                _conn.execute(text(_sql))
+        except Exception:
+            pass  # colonne déjà présente ou erreur non bloquante
 
     # Spatial indexes (PostGIS geometry).
     # These improve performance for ST_Intersects/ST_Contains/ST_Disjoint queries.

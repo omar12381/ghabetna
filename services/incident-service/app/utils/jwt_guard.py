@@ -2,9 +2,10 @@ from dataclasses import dataclass
 
 from fastapi import Depends, Header, HTTPException
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+from jose import JWTError
 
 from ..config import settings
+from .jwt_utils import decode_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="http://localhost:8001/auth/login")
 
@@ -19,7 +20,7 @@ class CurrentUser:
 
 def get_current_user(token: str = Depends(oauth2_scheme)) -> CurrentUser:
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=["HS256"])
+        payload = decode_token(token, settings.SECRET_KEY)
         if payload.get("type") != "access":
             raise HTTPException(401, "Token invalide")
         return CurrentUser(
@@ -40,6 +41,7 @@ def require_roles(*roles: str):
     return checker
 
 
-def verify_service_secret(x_service_secret: str = Header(alias="X-Service-Secret")) -> None:
-    if x_service_secret != settings.SERVICE_SECRET:
-        raise HTTPException(403, "Secret inter-service invalide")
+def verify_internal_key(x_internal_key: str = Header(alias="X-Internal-Key")) -> None:
+    """Protège les endpoints inter-services (incident-service → user-forest-service)."""
+    if x_internal_key != settings.INTERNAL_API_KEY:
+        raise HTTPException(403, "Clé inter-service invalide")

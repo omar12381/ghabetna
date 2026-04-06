@@ -79,7 +79,12 @@ async def refresh(refresh_token: str, redis: aioredis.Redis) -> dict:
 
     await redis.delete(f"refresh:{jti}")
 
-    token_data = {"sub": payload["sub"], "role": payload["role"]}
+    token_data = {
+        "sub": payload["sub"],
+        "role": payload["role"],
+        "direction_secondaire_id": payload.get("direction_secondaire_id"),
+        "direction_regionale_id": payload.get("direction_regionale_id"),
+    }
     new_access = create_access_token(token_data)
     new_refresh = create_refresh_token(token_data)
 

@@ -417,9 +417,185 @@ CREATE INDEX ix_parcelles_geom ON parcelles USING GIST (geom);
 
 ---
 
-## [M2] MS-1 SÉCURISÉ + AFFECTATION PARCELLE — ⬜ TODO
+## [M2] MS-1 SÉCURISÉ + AFFECTATION PARCELLE — ✅ DONE | 06 avril 2026
 
-> À remplir après completion
+> Services : `user-forest-service` (port 8000) + `auth-service` (port 8001) + `incident-service` (port 8002, nettoyé) | DB : `forest_db`
+> Stack backend : même stack MS-1/M1 — ajout SQLAlchemy raw SQL (`text()`) pour les JOIN enrichis
+> Stack frontend admin : Flutter SDK ^3.29.0 (mise à jour requise) — ajout `assign_agent_screen.dart`
+> Stack frontend superviseur : **nouvelle app** `flutter_superviseur/` — Flutter SDK ^3.10.7 + flutter_map ^7.0.2 + latlong2 + flutter_secure_storage + fl_chart (placeholder M7)
+> Décisions architecturales : affectation = responsabilité admin uniquement | table dans `forest_db` (vraies FK PostgreSQL) | schéma minimal Proposition B (pas de redondance)
+
+### Implemented
+
+**Backend — user-forest-service (ajouts M2) :**
+- `AgentParcelleAssignment` model SQLAlchemy dans `forest_db` — Proposition B minimale : 5 colonnes seulement (id, agent_id, parcelle_id, assigned_by, assigned_at, actif). Pas de forest_id, dir_secondaire_id, dir_regionale_id — résolus par JOIN à la lecture
+- Vraies FK PostgreSQL : `agent_id → users.id`, `parcelle_id → parcelles.id`, `assigned_by → users.id`
+- Index partiel unique `uq_agent_assignment_actif ON agent_parcelle_assignments (agent_id) WHERE actif = TRUE` — créé via migration on_startup
+- 5 nouveaux endpoints affectation dans `app/routers/affectations.py`
+- Helper SQL `_JOIN_SQL` partagé : enrichit chaque row avec agent_username, parcelle_name, forest_name, forest_id, dir_secondaire_id, dir_regionale_id via JOIN
+- `GET /users/agents/mon-equipe` : refactorisé avec LEFT JOIN direct sur `agent_parcelle_assignments` — suppression de l'ancien appel HTTP vers incident-service. Retourne deux sections typées : `"equipe_directe"` (agent.direction_secondaire_id == superviseur.ds_id) et `"libre_region"` (agent libre dans la même DR)
+- `GET /users/agents/disponibles` : sous-ensemble de `mon-equipe` filtré sur `libre_region`
+- `GET /forests/` : ajout filtre optionnel `?direction_secondaire_id=X`
+- `UserAuthRead` enrichi avec `direction_secondaire_id` et `direction_regionale_id` — utilisé par auth-service à l'inter-service lookup
+
+**Backend — auth-service (ajouts M2) :**
+- `POST /auth/login` : accepte désormais `role in ["admin", "superviseur"]` (NT5.1)
+- JWT access + refresh : payload enrichi avec `direction_secondaire_id` et `direction_regionale_id` (NT5.3)
+- `refresh()` : direction IDs propagés dans le nouveau token lors de la rotation (bug corrigé en review)
+- `config.py` migré vers `model_config = SettingsConfigDict(...)` — pattern pydantic-settings v2 (NT5.5)
+- `pytest` déplacé dans `requirements-test.txt` séparé (NT5.5)
+- `depends_on: db` supprimé de auth-service dans `docker-compose.yml` (NT5.5)
+
+**Backend — incident-service (nettoyage M2) :**
+- `models.py` : `AgentParcelleAssignment` supprimé — migré vers `forest_db`
+- `database.py` : `_migrations = []` — liste vidée
+- `routers/affectations.py` : endpoints supprimés, router vide conservé pour M3
+- `utils/http_client.py` : fonctions `get_user`, `get_parcelle`, `get_forest`, `patch_user` supprimées — fichier conservé vide pour M3
+- `main.py` : router affectations commenté jusqu'à M3 — `/health` fonctionnel
+
+**`app/utils/jwt_guard.py` (user-forest-service) :**
+- `TokenPayload` enrichi : `direction_secondaire_id: int | None` et `direction_regionale_id: int | None`
+- `get_current_user()` extrait les deux champs depuis le payload JWT
+
+**Flutter — app admin (`flutter/`) — ajouts M2 :**
+- `models/assignment.dart` — `AssignmentRead` (11 champs enrichis) + `AssignmentMinimal` + `bool hasAssignment`
+- `services/affectation_service.dart` — `affecter()`, `desaffecter()`, `getAffectations({dirSecondaireId})`, `getAffectationAgent()`, `getAgentsParParcelle()`, `getAgentsDisponibles()` — tout vers `apiBaseUrl` (port 8000) via `AuthenticatedClient`
+- `screens/assign_agent_screen.dart` — layout dual-panel responsive (>900px : Row, <900px : TabBar)
+  - Panneau gauche : dropdowns chaînés DR → DS → Forêt → Parcelle → agents disponibles (RadioListTile), bouton "Affecter"
+  - Panneau droit : DataTable affectations actives + filtre DS + bouton désaffectation avec dialog de confirmation
+  - Gestion erreur 403 "Incohérence géographique" → SnackBar rouge via `AffectationException`
+- `screens/home_screen.dart` : ajout bouton "Gestion Affectations" → route `/affectations`
+- `main.dart` : route `/affectations` → `AssignAgentScreen` enregistrée
+
+**Flutter — app superviseur (`flutter_superviseur/`) — nouvelle app M2 :**
+- `config/api_config.dart` — `forestServiceBaseUrl` (port 8000) + `authBaseUrl` (port 8001). `incidentBaseUrl` commenté (M3)
+- `utils/token_storage.dart` + `utils/http_client.dart` — copiés depuis app admin (même pattern `AuthenticatedClient`)
+- `services/auth_service.dart` — login avec guard client-side : décode JWT payload, vérifie `role == "superviseur"` avant de sauvegarder les tokens. Gestion 401/403/429/5xx
+- `services/affectation_service.dart` — **lecture seule** : `getAffectations()`, `getAffectationAgent()`, `getAgentsParParcelle()`. Pas de `affecter()` ni `desaffecter()`
+- `services/agent_service.dart` — `getMonEquipe()` + `getDisponibles()` → `GET /users/agents/mon-equipe` + `/disponibles`
+- `services/forest_service.dart` — `getForets({dirSecondaireId})` + `getParcellesByForet(foretId)`
+- `models/assignment.dart` — `AssignmentRead` + `AssignmentMinimal` (identiques à l'app admin)
+- `models/agent_with_status.dart` — `AgentWithStatus` avec `type`, `isAffecte`, `affectation` computed getter
+- `models/forest.dart` + `models/parcelle.dart`
+- `screens/login_screen.dart` — "Portail Superviseur", formulaire Material 3
+- `screens/home_screen.dart` — layout responsive : `NavigationRail` (>800px) / `NavigationBar` (<800px). 4 destinations : Tableau de bord | Mon équipe | Carte | Statistiques (placeholder M7). KPI cards : Total agents, Affectés, Libres, Incidents (--)
+- `screens/agents_screen.dart` — deux sections : Mon équipe (vert) / Disponibles dans la région (orange). Chip affectation. Dialog "Détails" read-only. Recherche locale. Pull-to-refresh. **Aucun bouton Affecter**
+- `screens/map_screen.dart` — `PolygonLayer` forêts (vert clair) + parcelles (vert foncé = affectée, orange = libre). Tap parcelle → `BottomSheet` agents (lecture seule). Bounding box auto. Légende. Refresh
+
+### DB Schema
+
+```sql
+-- Ajout dans forest_db (user-forest-service)
+
+CREATE TABLE agent_parcelle_assignments (
+  id          SERIAL PRIMARY KEY,
+  agent_id    INTEGER NOT NULL REFERENCES users(id),
+  parcelle_id INTEGER NOT NULL REFERENCES parcelles(id),
+  assigned_by INTEGER NOT NULL REFERENCES users(id),  -- admin_id
+  assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  actif       BOOLEAN NOT NULL DEFAULT TRUE
+  -- Pas de forest_id, dir_secondaire_id, dir_regionale_id
+  -- → résolus par JOIN à la lecture
+);
+
+-- Un agent = une seule affectation active
+CREATE UNIQUE INDEX uq_agent_assignment_actif
+  ON agent_parcelle_assignments (agent_id)
+  WHERE actif = TRUE;
+
+CREATE INDEX ix_apa_parcelle ON agent_parcelle_assignments (parcelle_id);
+CREATE INDEX ix_apa_assigned  ON agent_parcelle_assignments (assigned_by);
+```
+
+```
+-- JWT payload (access + refresh) — mis à jour M2
+{
+  "sub": "user_id (str)",
+  "role": "admin | superviseur",
+  "direction_secondaire_id": int | null,
+  "direction_regionale_id":  int | null,
+  "type": "access | refresh",
+  "exp": ...
+}
+```
+
+### Endpoints
+
+#### user-forest-service — ajouts M2
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| POST | /affectations/ | 🔒 admin | Affecter agent → parcelle (validation géo + transaction atomique) |
+| DELETE | /affectations/{agent_id} | 🔒 admin | Désaffecter un agent (soft-delete actif=False) |
+| GET | /affectations/ | 🔒 admin, superviseur | Admin : toutes. Superviseur : sa DS uniquement |
+| GET | /affectations/agent/{agent_id} | 🔒 admin, superviseur | Affectation courante d'un agent (AssignmentMinimal) |
+| GET | /affectations/parcelle/{parcelle_id} | 🔒 admin, superviseur | Agents d'une parcelle |
+| GET | /users/agents/mon-equipe | 🔒 superviseur | Équipe directe + libres région (JOIN direct, pas HTTP) |
+| GET | /users/agents/disponibles | 🔒 superviseur | Agents libres uniquement |
+| GET | /forests/?direction_secondaire_id= | 🔒 JWT | Forêts filtrées par DS (NT8) |
+
+#### auth-service — modifications M2
+
+| Method | Route | Modification |
+|---|---|---|
+| POST | /auth/login | Accepte `superviseur` + JWT enrichi avec direction ids |
+| POST | /auth/refresh | Direction ids propagés dans le nouveau token (bug corrigé) |
+
+#### incident-service — M2
+
+| Statut | Route | Description |
+|---|---|---|
+| 🗑️ Supprimé | /affectations/* | Migré vers user-forest-service |
+| ✅ Conservé | /health | Fonctionne — service propre |
+
+### Flutter Screens
+
+#### App admin (`flutter/`)
+
+| Screen | Route | Description |
+|---|---|---|
+| `assign_agent_screen.dart` | `/affectations` | Dual-panel : formulaire affectation + tableau actif |
+
+#### App superviseur (`flutter_superviseur/`)
+
+| Screen | Route | Description |
+|---|---|---|
+| `login_screen.dart` | `/login` | Portail superviseur — guard JWT role |
+| `home_screen.dart` | `/` | Auth guard + NavigationRail/BottomNav responsive + KPI cards |
+| `agents_screen.dart` | tab 1 | Équipe + disponibles — lecture seule |
+| `map_screen.dart` | tab 2 | Carte parcelles colorées — lecture seule |
+
+### Rules
+
+- RULE: Admin uniquement peut créer/supprimer une affectation — superviseur en lecture seule
+- RULE: Contrainte géographique obligatoire même pour admin : `agent.direction_regionale_id == parcelle.forest.direction_secondaire.region_id` → sinon HTTP 403
+- RULE: Un agent = une seule affectation active — enforced en DB par index partiel unique `WHERE actif = TRUE`
+- RULE: Désaffectation = soft-delete (`actif = FALSE`) — historique conservé
+- RULE: `direction_secondaire_id` de l'agent synchronisé atomiquement dans la même transaction que l'INSERT d'affectation
+- RULE: Lors de la désaffectation, `users.direction_secondaire_id` remis à NULL — agent redevient libre
+- RULE: Table `agent_parcelle_assignments` dans `forest_db` — vraies FK PostgreSQL, pas de FK logiques
+- RULE: Pas de colonnes redondantes dans `agent_parcelle_assignments` — forest_id et dir_*_id résolus par JOIN
+- RULE: `GET /affectations/` scopé : superviseur voit uniquement les affectations de sa direction secondaire
+- RULE: Superviseur login → portail superviseur uniquement (`role == "superviseur"` vérifié côté client après décodage JWT)
+- RULE: Direction ids (`direction_secondaire_id`, `direction_regionale_id`) présents dans access token ET propagés lors du refresh
+
+### Known Issues
+
+- ISSUE: `class Config: env_file = ".env"` toujours dans `user-forest-service/app/db.py` — NT5.5 appliqué uniquement à auth-service/config.py (corrigé en Phase 2)
+- ISSUE: `GET /users/` n'accepte pas de filtre `dir_regionale_id` — `getAgentsDisponibles()` dans l'app admin retourne tous les agents puis filtre côté client uniquement par rôle/actif (la contrainte géo du POST protège l'intégrité des données mais la UX est dégradée)
+- ISSUE: 3 endpoints S2S résiduels dans `users.py` (`GET /{user_id}/internal`, `PATCH /{user_id}/internal`) — dead code en M2, potentiellement utiles en M3 pour incident-service
+- ISSUE: `pubspec.yaml` app admin déclare `sdk: ^3.10.7` mais utilise `RadioGroup` (Flutter ≥ 3.29) — mettre à jour la contrainte SDK
+- ISSUE: `AgentWithStatus.affectation` dans flutter_superviseur reconstruit un `AssignmentMinimal` partiel depuis les champs de `AgentWithStatus` — `dirSecondaireId` vient de `directionSecondaireId` de l'agent, pas de la parcelle (cohérent dans le cas normal)
+- ISSUE: App superviseur n'a pas de redirect explicite vers `/login` depuis `AuthenticatedClient` après double refresh échoué — même limitation que l'app admin (passif via `initState`)
+
+### Refactor Later
+
+- REFACTOR: Ajouter filtre `dir_regionale_id` sur `GET /users/` OU créer `GET /users/agents/disponibles-admin?dr_id=X` (admin) — Phase 2
+- REFACTOR: Migrer `class Config:` → `model_config = SettingsConfigDict(...)` dans `user-forest-service/app/db.py` — Phase 2
+- REFACTOR: Supprimer `GET /{user_id}/internal` et `PATCH /{user_id}/internal` de `users.py` après vérification des besoins M3 — Phase 2
+- REFACTOR: Mettre à jour `sdk: ^3.29.0` dans `flutter/pubspec.yaml` — avant soutenance
+- REFACTOR: Package Flutter partagé `AuthenticatedClient` + `TokenStorage` (admin + superviseur) — Phase 2
+- REFACTOR: Pagination `GET /users/agents/mon-equipe` si > 50 agents — Phase 2
 
 ---
 
