@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Text, Float, Boolean, Index
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from geoalchemy2 import Geometry
 
 from .db import Base
@@ -101,4 +102,17 @@ class Parcelle(Base):
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     forest = relationship("Forest", back_populates="parcelles")
+
+
+class AgentParcelleAssignment(Base):
+    __tablename__ = "agent_parcelle_assignments"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    agent_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
+    parcelle_id = Column(Integer, ForeignKey("parcelles.id"), nullable=False)
+    assigned_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    assigned_at = Column(DateTime(timezone=True), server_default=func.now())
+    actif       = Column(Boolean, nullable=False, default=True)
+    # Pas de forest_id, dir_secondaire_id, dir_regionale_id
+    # → résolus par JOIN à la lecture
 

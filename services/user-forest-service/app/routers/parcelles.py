@@ -7,7 +7,7 @@ from shapely.geometry import shape
 from app.db import get_db
 from app import models, schemas
 from app.geo_utils import geojson_to_geometry, geometry_to_geojson
-from app.utils.jwt_guard import TokenPayload, get_current_user, require_roles
+from app.utils.jwt_guard import TokenPayload, get_current_user, require_roles, verify_service_secret
 
 
 router = APIRouter()
@@ -171,6 +171,26 @@ def list_parcelles_by_forest_summary(
         )
         for p in parcelles
     ]
+
+
+# Endpoint interne service-to-service — lecture parcelle par id (incident-service)
+@router.get("/{parcelle_id}/internal", response_model=schemas.ParcelleSummaryRead, include_in_schema=False)
+def get_parcelle_internal(
+    parcelle_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_service_secret),
+):
+    parcelle = db.query(models.Parcelle).get(parcelle_id)
+    if not parcelle:
+        raise HTTPException(status_code=404, detail="Parcelle non trouvée")
+    return schemas.ParcelleSummaryRead(
+        id=parcelle.id,
+        forest_id=parcelle.forest_id,
+        name=parcelle.name,
+        description=parcelle.description,
+        surface_ha=parcelle.surface_ha,
+        created_by_id=parcelle.created_by_id,
+    )
 
 
 @router.get("/{parcelle_id}", response_model=schemas.ParcelleRead)

@@ -1,4 +1,5 @@
-from typing import Optional, Any, Dict
+from datetime import datetime
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -58,6 +59,11 @@ class UserRead(BaseModel):
         from_attributes = True
 
 
+# Patch interne service-to-service (incident-service uniquement)
+class UserInternalUpdate(BaseModel):
+    direction_secondaire_id: int
+
+
 # Réponse interne service-to-service (auth-service uniquement)
 class UserAuthRead(BaseModel):
     id: int
@@ -65,6 +71,8 @@ class UserAuthRead(BaseModel):
     hashed_password: str
     role: str  # nom du rôle, ex: "admin"
     actif: bool
+    direction_secondaire_id: Optional[int] = None
+    direction_regionale_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -117,6 +125,7 @@ class ForestSummaryRead(BaseModel):
     name: str
     description: Optional[str]
     direction_secondaire_id: Optional[int] = None
+    direction_regionale_id: Optional[int] = None
     surface_ha: Optional[float] = None
     type_foret: Optional[str] = None
 
@@ -202,4 +211,37 @@ class DirectionSecondaireRead(DirectionSecondaireBase):
 
     class Config:
         from_attributes = True
+
+
+# === Affectations ===
+
+class AssignmentCreate(BaseModel):
+    agent_id: int
+    parcelle_id: int
+
+
+class AssignmentRead(BaseModel):
+    id: int
+    agent_id: int
+    parcelle_id: int
+    assigned_by: int
+    assigned_at: datetime
+    actif: bool
+    # Enrichis via JOIN direct (même DB)
+    agent_username: str
+    parcelle_name: str
+    forest_id: int
+    forest_name: str
+    dir_secondaire_id: int
+    dir_regionale_id: int
+
+    model_config = {"from_attributes": True}
+
+
+class AssignmentMinimal(BaseModel):
+    parcelle_id: Optional[int] = None
+    parcelle_name: Optional[str] = None
+    forest_id: Optional[int] = None
+    forest_name: Optional[str] = None
+    dir_secondaire_id: Optional[int] = None
 

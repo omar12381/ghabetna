@@ -6,11 +6,11 @@ from sqlalchemy import text
 
 from .db import engine, Base
 from . import models  # noqa: F401
-from .routers import users, forests, parcelles, roles
+from .routers import affectations, users, forests, parcelles, roles
 from .routers.directions import router_regionales, router_secondaires
 from .routers.geo import router as geo_router
 
-
+#est essentiel pour que votre frontend (par exemple en React/Vue) puisse appeler cette API sans être bloqué par les navigateurs.
 app = FastAPI(title="User & Forest Management API")
 
 allow_origins = os.getenv("CORS_ORIGINS", "http://localhost").split(",")
@@ -18,6 +18,7 @@ allow_origins = os.getenv("CORS_ORIGINS", "http://localhost").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
+    allow_origin_regex=r"http://localhost(:\d+)?",
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -56,6 +57,17 @@ def on_startup():
         except Exception:
             pass  # colonne déjà présente ou erreur non bloquante
 
+    # Index affectations (Proposition B minimale)
+    _migrations += [
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_agent_assignment_actif
+        ON agent_parcelle_assignments (agent_id)
+        WHERE actif = TRUE
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_apa_parcelle ON agent_parcelle_assignments (parcelle_id)",
+        "CREATE INDEX IF NOT EXISTS ix_apa_assigned  ON agent_parcelle_assignments (assigned_by)",
+    ]
+
     # Spatial indexes (PostGIS geometry).
     # These improve performance for ST_Intersects/ST_Contains/ST_Disjoint queries.
     with engine.begin() as conn:
@@ -76,6 +88,7 @@ def health():
     return {"status": "ok", "service": "user-forest-service"}
 
 
+app.include_router(affectations.router, prefix="/affectations", tags=["Affectations"])
 app.include_router(roles.router, prefix="/roles", tags=["roles"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(forests.router, prefix="/forests", tags=["forests"])

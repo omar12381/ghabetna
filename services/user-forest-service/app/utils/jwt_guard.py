@@ -15,6 +15,8 @@ class TokenPayload(BaseModel):
     sub: int
     role: str
     type: str
+    direction_secondaire_id: int | None = None
+    direction_regionale_id: int | None = None
 
 
 def get_current_user(token: str = Depends(oauth2_scheme)) -> TokenPayload:
@@ -22,7 +24,13 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> TokenPayload:
         payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("type") != "access":
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
-        return TokenPayload(sub=int(payload["sub"]), role=payload["role"], type=payload["type"])
+        return TokenPayload(
+            sub=int(payload["sub"]),
+            role=payload["role"],
+            type=payload["type"],
+            direction_secondaire_id=payload.get("direction_secondaire_id"),
+            direction_regionale_id=payload.get("direction_regionale_id"),
+        )
     except ExpiredSignatureError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
     except JWTError:

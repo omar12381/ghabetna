@@ -1,13 +1,13 @@
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app import models, schemas
 from app.geo_utils import geojson_to_geometry, geometry_to_geojson
-from app.utils.jwt_guard import TokenPayload, get_current_user, require_roles
+from app.utils.jwt_guard import TokenPayload, get_current_user, require_roles, verify_service_secret
 
 
 router = APIRouter()
@@ -56,8 +56,17 @@ def create_forest(forest_in: schemas.ForestCreate, db: Session = Depends(get_db)
 
 # Liste toutes les forêts (pagination + payload option via limit)
 @router.get("/", response_model=List[schemas.ForestRead])
-def list_forests(skip: int = 0, limit: int = 1000, db: Session = Depends(get_db), _: TokenPayload = Depends(get_current_user)):
-    forests = db.query(models.Forest).offset(skip).limit(limit).all()
+def list_forests(
+    skip: int = 0,
+    limit: int = 1000,
+    direction_secondaire_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    _: TokenPayload = Depends(get_current_user),
+):
+    query = db.query(models.Forest)
+    if direction_secondaire_id is not None:
+        query = query.filter(models.Forest.direction_secondaire_id == direction_secondaire_id)
+    forests = query.offset(skip).limit(limit).all()
     return [
         schemas.ForestRead(
             id=f.id,
@@ -96,6 +105,26 @@ def list_forests_summary(
         )
         for f in forests
     ]
+
+# Endpoint interne service-to-service — lecture forêt par id (incident-service)
+@router.get("/{forest_id}/internal", response_model=schemas.ForestSummaryRead, include_in_schema=False)
+def get_forest_internal(
+    forest_id: int,
+    db: Session = Depends(get_db),
+    _: None = Depends(verify_service_secret),
+):
+    forest = db.query(models.Forest).get(forest_id)
+    if not forest:
+        raise HTTPException(status_code=404, detail="Forêt non trouvée")
+    return schemas.ForestSummaryRead(
+        id=forest.id,
+        name=forest.name,
+        description=forest.description,
+        direction_secondaire_id=forest.direction_secondaire_id,
+        surface_ha=forest.surface_ha,
+        type_foret=forest.type_foret,
+    )
+
 
 # Obtenir une forêt par id
 @router.get("/{forest_id}", response_model=schemas.ForestRead)

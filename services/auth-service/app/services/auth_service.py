@@ -24,6 +24,11 @@ async def get_user_by_email(email: str) -> dict | None:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="User service timeout",
         )
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"User service error: {e.response.status_code}",
+        )
     except httpx.RequestError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -37,12 +42,17 @@ async def login(email: str, password: str, redis: aioredis.Redis) -> TokenRespon
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not user.get("actif", True):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
-    if user.get("role") != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
+    if user.get("role") not in ["admin", "superviseur"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accès réservé aux administrateurs et superviseurs")
     if not verify_password(password, user["hashed_password"]):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    token_data = {"sub": user["id"], "role": user["role"]}
+    token_data = {
+        "sub": user["id"],
+        "role": user["role"],
+        "direction_secondaire_id": user.get("direction_secondaire_id"),
+        "direction_regionale_id": user.get("direction_regionale_id"),
+    }
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token(token_data)
 

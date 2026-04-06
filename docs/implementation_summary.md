@@ -287,15 +287,133 @@ CREATE INDEX ix_parcelles_geom ON parcelles USING GIST (geom);
 - RULE: Alembic absent jusqu'à Phase 2 — migrations via `_migrations` on_startup
 
 ### Refactor Later
-- REFACTOR: Renommer `services/user_management/` → `services/user-forest-service/` et aplatir `flutter/user_forest_app/` → `flutter/` — **M1**
-- REFACTOR: Pinner les versions `requirements.txt` (ex. `fastapi==0.111.0`) — **M1**
+- ~~REFACTOR: Renommer `services/user_management/` → `services/user-forest-service/` et aplatir `flutter/user_forest_app/` → `flutter/`~~ — ✅ **FAIT en M1**
+- ~~REFACTOR: Pinner les versions `requirements.txt` (ex. `fastapi==0.111.0`)~~ — ✅ **FAIT en M1** (auth-service pinné, user-forest-service à vérifier)
 - REFACTOR: Ajouter `version: "3.9"` au `docker-compose.yml` — **M1 (trivial)**
-- REFACTOR: Ajouter Redis dans `docker-compose.yml` — **M5**
+- ~~REFACTOR: Ajouter Redis dans `docker-compose.yml`~~ — ✅ **FAIT en M1**
 - REFACTOR: Remplacer migrations artisanales par Alembic — **Phase 2**
 
-## [M1] AUTH SERVICE — ⬜ TODO
+## [M1] AUTH SERVICE — ✅ DONE | 03 avril 2026
 
-> À remplir après completion
+> Service : `auth-service` | Port : `8001` | DB : Redis (pas PostgreSQL)
+> Stack backend : FastAPI + python-jose (HS256) + passlib (pbkdf2_sha256) + redis-py async + httpx + pydantic-settings + email-validator
+> Stack frontend : flutter_secure_storage ^9.2.4 + http ^1.2.2 (AuthenticatedClient)
+> Inter-service : auth-service → user-forest-service via `X-Service-Secret` header + httpx
+
+### Implemented
+
+**auth-service (nouveau micro-service) :**
+- `POST /auth/login` — rate-limited (5 req/min/IP via Redis INCR+EXPIRE), admin-only
+  - Appel inter-service `GET /users/by-email/{email}` avec `X-Service-Secret`
+  - Vérifie `actif`, `role == "admin"`, puis `verify_password` PBKDF2-SHA256
+  - Retourne `TokenResponse(access_token, refresh_token, token_type, role)`
+- `POST /auth/refresh` — token rotation : révoque l'ancien jti, crée nouveau access + refresh
+- `POST /auth/logout` — idempotent, révoque le refresh token depuis Redis
+- `GET /health` — sonde Docker
+- `app/utils/jwt.py` — `create_access_token`, `create_refresh_token` (jti=uuid4), `decode_token`
+- `app/utils/password.py` — `verify_password` uniquement (auth-service ne crée pas d'users)
+- `app/models.py` — `LoginRequest`, `TokenResponse`, `RefreshRequest`, `AccessTokenResponse`, `TokenPayload`
+- `app/config.py` — pydantic-settings `BaseSettings` : `JWT_SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES`, `REFRESH_TOKEN_EXPIRE_DAYS`, `REDIS_URL`, `USER_SERVICE_URL`, `SERVICE_SECRET`, `CORS_ORIGINS`
+
+**JWT HS256 — structure des tokens :**
+- Access token : `{sub (str), role, type="access", exp=now+15min}`
+- Refresh token : `{sub (str), role, type="refresh", jti=uuid4, exp=now+7j}`
+- Redis key : `refresh:{jti}` → `user_id`, TTL = `REFRESH_TOKEN_EXPIRE_DAYS × 86400`
+- `decode_token` convertit `sub` en `int`; lève `HTTPException(401)` sur expiry/invalid
+
+**Rate limiting :**
+- Clé Redis : `rate_limit:login:{ip}` — INCR atomique + EXPIRE 60s au premier hit
+- Seuil : 5 req/min → HTTP 429
+
+**user-forest-service — ajouts M1 :**
+- `app/utils/jwt_guard.py` — `get_current_user()`, `require_roles(*roles)`, `verify_service_secret()`
+  - `OAuth2PasswordBearer(tokenUrl="http://localhost:8001/auth/login")` — URL hardcodée (Swagger uniquement)
+  - `require_roles` → `HTTPException(403)` si rôle insuffisant
+  - `verify_service_secret` → `Header(alias="X-Service-Secret")` → `HTTPException(403)` si mismatch
+- `GET /users/by-email/{email}` — endpoint interne (`include_in_schema=False`), `Depends(verify_service_secret)`
+  - Retourne `UserAuthRead` avec `hashed_password` et `role` name — jamais exposé publiquement
+- Tous les endpoints CRUD désormais protégés par JWT (`Depends(get_current_user)` ou `require_roles`)
+
+**docker-compose — ajouts M1 :**
+- Service `redis` : image `redis:7-alpine`, healthcheck `redis-cli ping`, volume `redis_data`
+- Service `auth-service` : port `8001`, `depends_on: redis: condition: service_healthy`
+- Note : `auth-service` dépend aussi de `db` dans compose (inutile — auth-service n'utilise pas PostgreSQL)
+
+**Flutter — ajouts M1 (`flutter/lib/`) :**
+- `utils/token_storage.dart` — `saveTokens`, `getAccessToken`, `getRefreshToken`, `clearTokens`, `isLoggedIn` via `flutter_secure_storage`
+- `utils/http_client.dart` — `AuthenticatedClient extends http.BaseClient`
+  - Injecte `Authorization: Bearer {token}` sur chaque requête
+  - Sur 401 : refresh automatique + retry une fois
+  - Sur double 401 : `clearTokens()` + retourne le 401 original
+  - Timeout 30s sur chaque send
+- `services/auth_service.dart` — `login()`, `refreshAccessToken()`, `logout()`
+  - `login` : `POST /auth/login` avec JSON `{email, password}` + sauvegarde tokens
+  - Différencie 403 "Account disabled" vs 403 "Admin only" via `detail` field
+- `config/api_config.dart` — `authBaseUrl` pour auth-service (port 8001)
+- `screens/login_screen.dart` — formulaire email/password, Material 3, gestion erreurs par code HTTP
+- `screens/home_screen.dart` — auth guard dans `initState` (`isLoggedIn` → redirect `/login`), bouton logout dans AppBar
+- `main.dart` — `initialRoute: '/login'`, routes `/login` → `LoginScreen`, `/` → `HomeScreen`
+- `screens/user_management_screen.dart` — corrigé : `_httpClient = AuthenticatedClient()` (était `http.Client()`)
+
+**Tests M1 :**
+- `services/auth-service/tests/test_jwt.py` — unit tests : création access/refresh, decode, expiry, type validation
+- `docs/test_scripts/test_f2_auth_flow.sh` — test curl end-to-end : login → refresh → logout
+- `docs/test_scripts/test_f3_guards.sh` — test curl : guards JWT (401 sans token, 403 mauvais rôle)
+
+### Endpoints auth-service
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| POST | /auth/login | ❌ none (rate-limited) | Login email+password → access+refresh tokens |
+| POST | /auth/refresh | ❌ none | Rotation refresh token → nouveaux tokens |
+| POST | /auth/logout | ❌ none | Révocation refresh token (idempotent) |
+| GET | /health | ❌ none | Health check Docker |
+
+### Endpoints user-forest-service — ajouts M1
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| GET | /users/by-email/{email} | 🔒 X-Service-Secret | Endpoint interne auth-service (non documenté Swagger) |
+| (tous les autres) | /users/, /forests/, /parcelles/, /directions-* | 🔒 JWT Bearer | Protégés depuis M1 |
+
+### Flutter Screens
+
+| Screen | Route | Description |
+|---|---|---|
+| `login_screen.dart` | `/login` | Formulaire email/password + gestion 401/403/429/5xx |
+| `home_screen.dart` | `/` | Auth guard initState + logout AppBar |
+
+### Rules
+
+- RULE: Seuls les users avec `role == "admin"` peuvent se connecter au portail web
+- RULE: `actif == false` → HTTP 403 "Account disabled" avant vérification du mot de passe
+- RULE: Rate limit 5 req/min par IP sur `/auth/login` — clé Redis atomique `rate_limit:login:{ip}`
+- RULE: Token rotation obligatoire au refresh — l'ancien jti est supprimé de Redis avant d'émettre le nouveau
+- RULE: Logout est idempotent — token expiré ou invalide est ignoré silencieusement
+- RULE: `X-Service-Secret` obligatoire sur les endpoints inter-services — jamais exposés en Swagger
+- RULE: `flutter_secure_storage` uniquement pour les tokens — jamais `SharedPreferences`
+- RULE: `AuthenticatedClient` obligatoire sur tous les appels HTTP Flutter après M1 — plus de `http.Client()` nu
+- RULE: Access token expire en 15min, refresh token en 7 jours — configurable via `.env`
+
+### Known Issues
+
+- ISSUE: `passlib[bcrypt]` dans requirements.txt — bcrypt non utilisé (seul pbkdf2_sha256 est actif)
+- ISSUE: `pytest==8.3.5` dans requirements.txt prod — doit être dans `requirements-test.txt` séparé
+- ISSUE: `class Config: env_file = ".env"` dans `config.py` — pattern déprécié pydantic-settings v2 (utiliser `model_config = SettingsConfigDict(...)`)
+- ISSUE: `OAuth2PasswordBearer(tokenUrl="http://localhost:8001/auth/login")` hardcodé — cassé hors localhost (Swagger uniquement, pas fonctionnel)
+- ISSUE: `auth-service` `depends_on: db` dans docker-compose inutile — auth-service n'utilise pas PostgreSQL
+- ISSUE: `AuthenticatedClient` ne redirige pas vers `/login` après refresh échoué — `home_screen` gère le redirect passivement via `initState`
+- ISSUE: Restriction `role == "admin"` uniquement — les superviseurs n'ont pas accès au portail web (à revoir en M4 selon CDC)
+
+### Refactor Later
+
+- REFACTOR: Séparer `requirements-test.txt` de `requirements.txt` (enlever pytest du prod)
+- REFACTOR: Migrer `class Config` vers `model_config = SettingsConfigDict(env_file=".env")` dans `config.py`
+- REFACTOR: Remplacer bcrypt par pbkdf2_sha256 dans `passlib[pbkdf2]` (éviter dépendance bcrypt inutile)
+- REFACTOR: Rendre `tokenUrl` configurable via env (pour Swagger en staging/prod)
+- REFACTOR: Supprimer `depends_on: db` dans auth-service du docker-compose
+- REFACTOR: Ajouter redirect `/login` depuis `AuthenticatedClient` quand refresh échoue (nécessite NavigatorKey global)
+- REFACTOR: Ouvrir accès portail web aux superviseurs en M4 (restriction admin-only temporaire)
 
 ---
 
