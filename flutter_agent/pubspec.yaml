@@ -1,0 +1,29 @@
+name: flutter_agent
+description: "Application mobile agent forestier — GHABETNA"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  http: ^1.2.2
+  shared_preferences: ^2.2.2
+  flutter_secure_storage: ^9.2.4
+  image_picker: ^1.0.4
+  geolocator: ^11.0.0
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

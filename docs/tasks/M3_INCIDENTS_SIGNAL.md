@@ -342,8 +342,8 @@ Réponse 403 : X-Internal-Key absent ou invalide
 - [X] Réponse `{parcelle_id, forest_id, dir_secondaire_id, gps_match_type}`
 - [X] 404 si aucune parcelle dans la DB
 - [X] Inclure le router dans `user-forest-service/app/main.py`
-- [ ] Tester avec coordonnées dans une parcelle connue → `gps_match_type = 'exact'`
-- [ ] Tester avec coordonnées hors parcelle → `gps_match_type = 'nearest'`
+- [X] Tester avec coordonnées dans une parcelle connue → `gps_match_type = 'exact'`
+- [X] Tester avec coordonnées hors parcelle → `gps_match_type = 'nearest'`
 
 #### T5 — Client HTTP interne dans incident-service
 - [X] Créer `app/utils/forest_client.py`
@@ -407,44 +407,44 @@ Réponse 403 : X-Internal-Key absent ou invalide
 - [X] Trier `created_at DESC`, pagination `skip=0&limit=50`
 
 #### T11 — `GET /incidents/my`
-- [ ] `agent_id = jwt.user_id` ET `deleted_at IS NULL`
-- [ ] Trier `created_at DESC`
-- [ ] Inclure `photo_urls` et `statut_couleur`
+- [X] `agent_id = jwt.user_id` ET `deleted_at IS NULL`
+- [X] Trier `created_at DESC`
+- [X] Inclure `photo_urls` et `statut_couleur`
 
 #### T12 — `GET /incidents/{id}`
-- [ ] Vérifier accès selon rôle (agent → ses incidents, superviseur → sa direction, admin → tous)
-- [ ] Vérifier `deleted_at IS NULL` sauf admin
-- [ ] JOIN photos + commentaires + historique statuts
-- [ ] Retourner `IncidentRead` complet
+- [X] Vérifier accès selon rôle (agent → ses incidents, superviseur → sa direction, admin → tous)
+- [X] Vérifier `deleted_at IS NULL` sauf admin
+- [X] JOIN photos + commentaires + historique statuts
+- [X] Retourner `IncidentRead` complet
 
 #### T13 — `PATCH /incidents/{id}/status`
-- [ ] Vérifier `role == 'superviseur'` → sinon 403
-- [ ] Vérifier `incident.dir_secondaire_id == jwt.direction_secondaire_id` → sinon 403
-- [ ] Valider `statut_code` existe en DB → sinon 422
-- [ ] Valider `note_superviseur` entre 1 et 5 si fournie → sinon 422
-- [ ] Transaction atomique :
-  - [ ] UPDATE `incidents` : `statut_id`, `note_superviseur`, `commentaire_superviseur`, `updated_by`, `updated_at`
-  - [ ] INSERT `incident_status_history`
-  - [ ] INSERT `incident_comments` si commentaire fourni
-- [ ] Retourner incident mis à jour
+- [X] Vérifier `role == 'superviseur'` → sinon 403
+- [X] Vérifier `incident.dir_secondaire_id == jwt.direction_secondaire_id` → sinon 403
+- [X] Valider `statut_code` existe en DB → sinon 422
+- [X] Valider `note_superviseur` entre 1 et 5 si fournie → sinon 422
+- [X] Transaction atomique :
+  - [X] UPDATE `incidents` : `statut_id`, `note_superviseur`, `commentaire_superviseur`, `updated_by`, `updated_at`
+  - [X] INSERT `incident_status_history`
+  - [X] INSERT `incident_comments` si commentaire fourni
+- [X] Retourner incident mis à jour
 
 #### T14 — `DELETE /incidents/{id}` (soft delete)
-- [ ] Vérifier `role == 'admin'` → sinon 403
-- [ ] UPDATE `incidents` : `deleted_at = NOW()`, `updated_by = jwt.user_id`
-- [ ] Retourner 204
+- [X] Vérifier `role == 'admin'` → sinon 403
+- [X] UPDATE `incidents` : `deleted_at = NOW()`, `updated_by = jwt. nbuser_id`
+- [X] Retourner 204
 
 #### T15 — Servir les fichiers media
-- [ ] `app.mount("/media", StaticFiles(directory="/media/incidents"), name="media")`
-- [ ] Créer `/media/incidents/` au startup si inexistant
-- [ ] Tester URL : `http://localhost:8002/media/incidents/{uuid}.jpg`
+- [X] `app.mount("/media", StaticFiles(directory="/media/incidents"), name="media")`
+- [X] Créer `/media/incidents/` au startup si inexistant
+- [X] Tester URL : `http://localhost:8002/media/incidents/{uuid}.jpg`
 
 ---
 
 ### BLOC 4 — APP MOBILE FLUTTER AGENT (Jours 5–7)
 
 #### T16 — Setup `flutter_agent/`
-- [ ] `flutter create flutter_agent`
-- [ ] `pubspec.yaml` dépendances :
+- [X] `flutter create flutter_agent`
+- [X] `pubspec.yaml` dépendances :
   ```yaml
   http: ^1.2.2
   shared_preferences: ^2.2.2
@@ -453,74 +453,74 @@ Réponse 403 : X-Internal-Key absent ou invalide
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
   ```
-- [ ] `AndroidManifest.xml` : permissions `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `CAMERA`, `READ_EXTERNAL_STORAGE`
-- [ ] `Info.plist` : clés `NSLocationWhenInUseUsageDescription`, `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`
-- [ ] `config/api_config.dart` : `incidentServiceBaseUrl`, `authBaseUrl`
-- [ ] Copier `token_storage.dart` + `http_client.dart` depuis `flutter_superviseur/`
-- [ ] `main.dart` routing + theme Material 3 seedColor: Colors.green
+- [X] `AndroidManifest.xml` : permissions `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `CAMERA`, `READ_EXTERNAL_STORAGE`
+- [X] `Info.plist` : clés `NSLocationWhenInUseUsageDescription`, `NSCameraUsageDescription`, `NSPhotoLibraryUsageDescription`
+- [X] `config/api_config.dart` : `incidentServiceBaseUrl`, `authBaseUrl`
+- [X] Copier `token_storage.dart` + `http_client.dart` depuis `flutter_superviseur/`
+- [X] `main.dart` routing + theme Material 3 seedColor: Colors.green
 
 #### T17 — Auth agent mobile
-- [ ] `services/auth_service.dart` — `login(email, password)`
-- [ ] Décoder JWT → vérifier `role == 'agent_forestier'` → sinon "Compte non autorisé"
-- [ ] Stocker `access_token`, `refresh_token`, `user_id`, `username`
-- [ ] `screens/login_screen.dart` : formulaire + loading + messages erreur en français
+- [X] `services/auth_service.dart` — `login(email, password)`
+- [X] Décoder JWT → vérifier `role == 'agent_forestier'` → sinon "Compte non autorisé"
+- [X] Stocker `access_token`, `refresh_token`, `user_id`, `username`
+- [X] `screens/login_screen.dart` : formulaire + loading + messages erreur en français
 
 #### T18 — Services et modèles Flutter
-- [ ] `services/incident_service.dart` :
-  - [ ] `getTypes()` → `GET /incidents/types`
-  - [ ] `getStatuts()` → `GET /incidents/statuts`
-  - [ ] `createIncident(type_code, description, lat, lng, photo)` → multipart POST
-  - [ ] `getMyIncidents()` → `GET /incidents/my`
-  - [ ] `getIncidentDetail(id)` → `GET /incidents/{id}`
-- [ ] `models/incident.dart` : `IncidentType`, `Statut`, `IncidentListItem`, `IncidentDetail` avec `fromJson()`
+- [X] `services/incident_service.dart` :
+  - [X] `getTypes()` → `GET /incidents/types`
+  - [X] `getStatuts()` → `GET /incidents/statuts`
+  - [X] `createIncident(type_code, description, lat, lng, photo)` → multipart POST
+  - [X] `getMyIncidents()` → `GET /incidents/my`
+  - [X] `getIncidentDetail(id)` → `GET /incidents/{id}`
+- [X] `models/incident.dart` : `IncidentType`, `Statut`, `IncidentListItem`, `IncidentDetail` avec `fromJson()`
 
 #### T19 — `incident_report_screen.dart`
-- [ ] **Capture photo :**
-  - [ ] Bouton "Prendre une photo" → `ImagePicker(source: camera)`
-  - [ ] Bouton "Galerie" → `ImagePicker(source: gallery)`
-  - [ ] Preview photo (Container 200px hauteur)
-  - [ ] Photo obligatoire → validation avant soumission
-- [ ] **GPS automatique :**
-  - [ ] `initState` → `Geolocator.getCurrentPosition()` automatiquement
-  - [ ] Indicateur "📍 Localisation en cours..."
-  - [ ] Coordonnées affichées en petit texte une fois obtenues
-  - [ ] Permission refusée → dialog explicatif en français
-  - [ ] GPS désactivé → dialog demande activation
-  - [ ] GPS obligatoire → validation avant soumission
-- [ ] **Formulaire :**
-  - [ ] Dropdown `type_incident` chargé depuis `GET /incidents/types`
-  - [ ] Badge priorité auto affiché selon type (Rouge=CRITIQUE, Orange=HAUTE, Vert=NORMALE)
-  - [ ] Champ `description` optionnel, multiline, max 500 chars
-- [ ] **Soumission :**
-  - [ ] Valider photo + type + GPS → SnackBar rouge si manquant
-  - [ ] Loading indicator + bouton désactivé pendant upload
-  - [ ] Succès → SnackBar vert "Incident signalé avec succès ✅" + `Navigator.pop()`
-  - [ ] Erreur 422 hors zone → "Votre position est hors zone surveillée"
-  - [ ] Erreur 503 → "Service indisponible, réessayez"
+- [X] **Capture photo :**
+  - [X] Bouton "Prendre une photo" → `ImagePicker(source: camera)`
+  - [X] Bouton "Galerie" → `ImagePicker(source: gallery)`
+  - [X] Preview photo (Container 200px hauteur)
+  - [X] Photo obligatoire → validation avant soumission
+- [X] **GPS automatique :**
+  - [X] `initState` → `Geolocator.getCurrentPosition()` automatiquement
+  - [X] Indicateur "📍 Localisation en cours..."
+  - [X] Coordonnées affichées en petit texte une fois obtenues
+  - [X] Permission refusée → dialog explicatif en français
+  - [X] GPS désactivé → dialog demande activation
+  - [X] GPS obligatoire → validation avant soumission
+- [X] **Formulaire :**
+  - [X] Dropdown `type_incident` chargé depuis `GET /incidents/types`
+  - [X] Badge priorité auto affiché selon type (Rouge=CRITIQUE, Orange=HAUTE, Vert=NORMALE)
+  - [X] Champ `description` optionnel, multiline, max 500 chars
+- [X] **Soumission :**
+  - [X] Valider photo + type + GPS → SnackBar rouge si manquant
+  - [X] Loading indicator + bouton désactivé pendant upload
+  - [X] Succès → SnackBar vert "Incident signalé avec succès ✅" + `Navigator.pop()`
+  - [X] Erreur 422 hors zone → "Votre position est hors zone surveillée"
+  - [X] Erreur 503 → "Service indisponible, réessayez"
 
 #### T20 — `my_incidents_screen.dart`
-- [ ] `GET /incidents/my` → `ListView` incidents
-- [ ] `ListTile` : icône type + `type_label` + date + badge statut coloré + badge priorité
-- [ ] Pull-to-refresh (`RefreshIndicator`)
-- [ ] Tap → `IncidentDetailScreen`
-- [ ] État vide : icône + "Aucun incident signalé pour le moment"
-- [ ] État erreur : icône + message + bouton "Réessayer"
+- [X] `GET /incidents/my` → `ListView` incidents
+- [X] `ListTile` : icône type + `type_label` + date + badge statut coloré + badge priorité
+- [X] Pull-to-refresh (`RefreshIndicator`)
+- [X] Tap → `IncidentDetailScreen`
+- [X] État vide : icône + "Aucun incident signalé pour le moment"
+- [X] État erreur : icône + message + bouton "Réessayer"
 
 #### T21 — `incident_detail_screen.dart`
-- [ ] Photo plein largeur, tap → plein écran
-- [ ] Row badges : type + priorité + statut (couleurs depuis `statut.couleur`)
-- [ ] Date/heure signalement formatée
-- [ ] Mini-carte `flutter_map` : marker PIN sur coordonnées GPS, zoom 15, non interactive
-- [ ] Indicateur GPS : "📍 Position exacte" ou "📍 Position approximative (parcelle la plus proche)"
-- [ ] Section "Retour superviseur" si `note_superviseur != null` : étoiles + commentaire
-- [ ] Historique statuts : liste changements avec date et auteur
+- [X] Photo plein largeur, tap → plein écran
+- [X] Row badges : type + priorité + statut (couleurs depuis `statut.couleur`)
+- [X] Date/heure signalement formatée
+- [X] Mini-carte `flutter_map` : marker PIN sur coordonnées GPS, zoom 15, non interactive
+- [X] Indicateur GPS : "📍 Position exacte" ou "📍 Position approximative (parcelle la plus proche)"
+- [X] Section "Retour superviseur" si `note_superviseur != null` : étoiles + commentaire
+- [X] Historique statuts : liste changements avec date et auteur
 
 #### T22 — `home_screen.dart` agent
-- [ ] AppBar "GHABETNA" + bouton déconnexion
-- [ ] Sous-titre "Bonjour, {username}"
-- [ ] 2 cards principales : "Signaler un incident" (rouge/orange) + "Mes signalements" (verte)
-- [ ] Badge compteur incidents `en_attente` sur la card "Mes signalements"
-- [ ] Placeholder score badge gris "Score: --" → sera rempli en M6
+- [X] AppBar "GHABETNA" + bouton déconnexion
+- [X] Sous-titre "Bonjour, {username}"
+- [X] 2 cards principales : "Signaler un incident" (rouge/orange) + "Mes signalements" (verte)
+- [X] Badge compteur incidents `en_attente` sur la card "Mes signalements"
+- [X] Placeholder score badge gris "Score: --" → sera rempli en M6
 
 ---
 

@@ -248,3 +248,144 @@ def list_incidents(
 
     rows = q.order_by(Incident.created_at.desc()).offset(skip).limit(limit).all()
     return [_build_list_item(inc) for inc in rows]
+
+
+# ── Mes incidents (agent) — doit être avant /{incident_id} ──────────────────
+
+@router.get("/my", response_model=list[IncidentListItem])
+def my_incidents(
+    skip:         int        = Query(0,  ge=0),
+    limit:        int        = Query(50, ge=1, le=200),
+    db:           Session    = Depends(get_db),
+    current_user: CurrentUser = Depends(require_roles("agent_forestier")),
+):
+    rows = (
+        db.query(Incident)
+        .join(Incident.type)
+        .join(IncidentType.priorite)
+        .join(Incident.statut)
+        .filter(Incident.agent_id == current_user.id, Incident.deleted_at.is_(None))
+        .order_by(Incident.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return [_build_list_item(inc) for inc in rows]
+
+
+# ── Détail ────────────────────────────────────────────────────────────────────
+
+@router.get("/{incident_id}", response_model=IncidentRead)
+def get_incident(
+    incident_id:  int,
+    db:           Session     = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    inc = (
+        db.query(Incident)
+        .join(Incident.type)
+        .join(IncidentType.priorite)
+        .join(Incident.statut)
+        .filter(Incident.id == incident_id)
+        .first()
+    )
+
+    if inc is None:
+        raise HTTPException(status_code=404, detail="Incident introuvable")
+
+    # deleted_at IS NULL — sauf admin qui peut voir les soft-deleted
+    if current_user.role != "admin" and inc.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Incident introuvable")
+
+    # RBAC
+    if current_user.role == "agent_forestier" and inc.agent_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Accès refusé")
+    if current_user.role == "superviseur" and inc.dir_secondaire_id != current_user.direction_secondaire_id:
+        raise HTTPException(status_code=403, detail="Accès refusé")
+
+    return _build_incident_read(inc)
+
+
+# ── Mise à jour statut (superviseur) ─────────────────────────────────────────
+
+@router.patch("/{incident_id}/status", response_model=IncidentRead)
+def update_status(
+    incident_id:  int,
+    body:         IncidentStatusUpdate,
+    db:           Session     = Depends(get_db),
+    current_user: CurrentUser = Depends(require_roles("superviseur")),
+):
+    # Charger l'incident
+    inc = (
+        db.query(Incident)
+        .join(Incident.type)
+        .join(IncidentType.priorite)
+        .join(Incident.statut)
+        .filter(Incident.id == incident_id, Incident.deleted_at.is_(None))
+        .first()
+    )
+    if inc is None:
+        raise HTTPException(status_code=404, detail="Incident introuvable")
+
+    # Vérifier la direction du superviseur
+    if inc.dir_secondaire_id != current_user.direction_secondaire_id:
+        raise HTTPException(status_code=403, detail="Accès refusé")
+
+    # Valider statut_code
+    new_statut = db.query(Statut).filter(Statut.code == body.statut_code).first()
+    if new_statut is None:
+        raise HTTPException(status_code=422, detail=f"Statut inconnu : {body.statut_code}")
+
+    # Valider note_superviseur
+    if body.note_superviseur is not None and not (1 <= body.note_superviseur <= 5):
+        raise HTTPException(status_code=422, detail="note_superviseur doit être entre 1 et 5")
+
+    # Transaction atomique
+    from datetime import datetime as dt, timezone
+    old_statut_id = inc.statut_id
+    inc.statut_id = new_statut.id
+    if body.note_superviseur is not None:
+        inc.note_superviseur = body.note_superviseur
+    if body.commentaire is not None:
+        inc.commentaire_superviseur = body.commentaire
+    inc.updated_by = current_user.id
+    inc.updated_at = dt.now(timezone.utc)
+
+    db.add(IncidentStatusHistory(
+        incident_id=inc.id,
+        old_statut_id=old_statut_id,
+        new_statut_id=new_statut.id,
+        changed_by=current_user.id,
+        commentaire=body.commentaire,
+    ))
+
+    if body.commentaire is not None:
+        db.add(IncidentComment(
+            incident_id=inc.id,
+            author_id=current_user.id,
+            author_role="superviseur",
+            content=body.commentaire,
+        ))
+
+    db.commit()
+    db.refresh(inc)
+    return _build_incident_read(inc)
+
+
+# ── Soft delete (admin) ───────────────────────────────────────────────────────
+
+@router.delete("/{incident_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_incident(
+    incident_id:  int,
+    db:           Session     = Depends(get_db),
+    current_user: CurrentUser = Depends(require_roles("admin")),
+):
+    from datetime import datetime as dt, timezone
+
+    inc = db.query(Incident).filter(Incident.id == incident_id).first()
+    if inc is None:
+        raise HTTPException(status_code=404, detail="Incident introuvable")
+
+    inc.deleted_at = dt.now(timezone.utc)
+    inc.updated_by = current_user.id
+    db.commit()
